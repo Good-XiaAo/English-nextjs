@@ -1,9 +1,9 @@
 "use client";
-
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Show, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs'
+import { Show, SignInButton, UserButton } from '@clerk/nextjs'
+import {useUser} from "@clerk/nextjs";
 const links = [
   { href: "/", label: "首页" },
   { href: "/learn", label: "学习" },
@@ -12,6 +12,8 @@ const links = [
 
 export function Nav() {
   const pathname = usePathname();
+  const {user, isSignedIn} = useUser();
+  console.log(user)
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/80 backdrop-blur">
@@ -86,13 +88,6 @@ export function Nav() {
           </div>
 
           <span className="h-6 w-px bg-slate-200" />
-
-          {/* <div className="flex items-center gap-2">
-            <span className="grid size-9 place-items-center rounded-full bg-slate-900 text-sm font-bold text-white">
-              R
-            </span>
-            <span className="text-sm font-bold text-slate-800">Rust</span>
-          </div> */}
           <div className="flex justify-end items-center p-4 gap-4 h-16">
             <Show when="signed-out">
               <SignInButton mode="modal">

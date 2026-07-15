@@ -1,0 +1,29 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id       String  @id @default(cuid())
+  clerkId  String  @unique // Clerk 的用户 ID(user_xxx),webhook 同步时用它查找
+  email    String  @unique
+  username     String?
+  imageUrl String?
+
+  points Int @default(50) // 积分
+  stars  Int @default(0) // 星星
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
