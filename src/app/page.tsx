@@ -12,7 +12,7 @@ const stats = [
 export default function Home() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800">
-      <Nav />
+      {/* <Nav /> */}
 
       <main className="mx-auto max-w-[1200px] px-5 py-8">
         {/* Hero */}

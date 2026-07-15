@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { ClerkProvider, Show, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs'
+import { Show, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs'
 const links = [
   { href: "/", label: "首页" },
   { href: "/learn", label: "学习" },
@@ -93,21 +93,18 @@ export function Nav() {
             </span>
             <span className="text-sm font-bold text-slate-800">Rust</span>
           </div> */}
-         <ClerkProvider>
           <div className="flex justify-end items-center p-4 gap-4 h-16">
             <Show when="signed-out">
-              <SignInButton />
-              <SignUpButton>
-                <button className="rounded-lg border cursor-pointer border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-100">
-                  注册
+              <SignInButton mode="modal">
+                <button className="cursor-pointer rounded-lg px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
+                  登录
                 </button>
-              </SignUpButton>
+              </SignInButton>
             </Show>
             <Show when="signed-in">
-              <UserButton />
+              <UserButton showName />
             </Show>
           </div>
-        </ClerkProvider>
         </div>
       </nav>
     </header>
