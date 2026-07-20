@@ -3,7 +3,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Show, SignInButton, UserButton } from '@clerk/nextjs'
-import {useUser} from "@clerk/nextjs";
 const links = [
   { href: "/", label: "首页" },
   { href: "/learn", label: "学习" },
@@ -12,8 +11,6 @@ const links = [
 
 export function Nav() {
   const pathname = usePathname();
-  const {user, isSignedIn} = useUser();
-  console.log(user)
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/80 backdrop-blur">
