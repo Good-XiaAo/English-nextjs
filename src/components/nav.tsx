@@ -5,8 +5,9 @@ import { cn } from "@/lib/utils";
 import { Show, SignInButton, UserButton } from '@clerk/nextjs'
 const links = [
   { href: "/", label: "首页" },
+  { href: "/aiChat", label: "聊天" },
   { href: "/learn", label: "学习" },
-  { href: "/courses", label: "课程" },
+  { href: "/courses", label: "课程" }
 ];
 
 export function Nav() {
