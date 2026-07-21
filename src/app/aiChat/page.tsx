@@ -8,6 +8,7 @@ type Mode = {
   name: string;
   desc: string;
   greeting: string;
+  system: string;
 };
 
 type Message = {
@@ -22,6 +23,7 @@ const modes: Mode[] = [
     name: "智能助手",
     desc: "通用英语学习助手",
     greeting: "我是一个智能助手，专门帮助你学习英语和回答问题。你有什么想了解的吗？",
+    system: "你是一个通用英语学习助手，帮助用户学习英语并回答各类问题，回答简洁友好。",
   },
   {
     id: "master",
@@ -29,6 +31,7 @@ const modes: Mode[] = [
     name: "英语大师",
     desc: "语法与写作专家",
     greeting: "我是英语大师，擅长语法讲解和写作润色。把你的句子发给我吧！",
+    system: "你是一位英语语法与写作专家，擅长纠错、润色并解释语法要点，讲解清晰有条理。",
   },
   {
     id: "business",
@@ -36,6 +39,7 @@ const modes: Mode[] = [
     name: "商务英语",
     desc: "职场沟通与邮件",
     greeting: "我是商务英语教练，可以帮你练习职场对话、撰写商务邮件。",
+    system: "你是一位商务英语教练，帮助用户练习职场沟通、撰写商务邮件，注重专业得体的表达。",
   },
   {
     id: "qilin",
@@ -43,6 +47,7 @@ const modes: Mode[] = [
     name: "麒麟哥",
     desc: "口语陪练搭子",
     greeting: "嘿！我是麒麟哥，陪你轻松练口语，想聊点什么？",
+    system: "你是麒麟哥，一个幽默随和的英语口语陪练，用轻松口语化的方式陪用户练习日常对话。",
   },
   {
     id: "xiaoman",
@@ -50,6 +55,7 @@ const modes: Mode[] = [
     name: "小满模式",
     desc: "轻松趣味学习",
     greeting: "小满在这里～我们边玩边学英语吧！",
+    system: "你是小满，一个活泼可爱的英语学习伙伴，通过趣味例子和小游戏帮用户轻松学英语。",
   },
 ];
 
@@ -60,20 +66,58 @@ export default function AiChat() {
   const [messages, setMessages] = useState<Message[]>([
     { role: "assistant", content: modes[0].greeting },
   ]);
+  console.log(messages);
   const [input, setInput] = useState("");
   const [deepThink, setDeepThink] = useState(false);
   const [webSearch, setWebSearch] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   function switchMode(mode: Mode) {
     setActiveMode(mode);
     setMessages([{ role: "assistant", content: mode.greeting }]);
   }
 
-  function send() {
+  function appendToLast(chunk: string) {
+    setMessages((prev) => {
+      const next = [...prev];
+      const last = next[next.length - 1];
+      next[next.length - 1] = { ...last, content: last.content + chunk };
+      return next;
+    });
+  }
+
+  async function send() {
     const text = input.trim();
-    if (!text) return;
-    setMessages((prev) => [...prev, { role: "user", content: text }]);
+    if (!text || loading) return;
+    const chatHistory = [...messages, { role: "user", content: text } as Message];
+    setMessages([...chatHistory, { role: "assistant", content: "" }]);
     setInput("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: chatHistory,
+          system: activeMode.system,
+          deepThink,
+        }),
+      });
+      if (!res.ok || !res.body) {
+        throw new Error(`请求失败：${res.status}`);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        appendToLast(decoder.decode(value, { stream: true }));
+      }
+    } catch {
+      appendToLast("抱歉，请求出错了，请稍后重试。");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
