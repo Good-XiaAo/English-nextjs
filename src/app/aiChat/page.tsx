@@ -14,6 +14,15 @@ type Mode = {
 type Message = {
   role: "user" | "assistant";
   content: string;
+  reasoning?: string;
+  deepThinking?: boolean;
+  webSearching?: boolean;
+};
+
+type ChatStreamEvent = {
+  type: "reasoning" | "text" | "error";
+  delta?: string;
+  message?: string;
 };
 
 const modes: Mode[] = [
@@ -66,7 +75,6 @@ export default function AiChat() {
   const [messages, setMessages] = useState<Message[]>([
     { role: "assistant", content: modes[0].greeting },
   ]);
-  console.log(messages);
   const [input, setInput] = useState("");
   const [deepThink, setDeepThink] = useState(false);
   const [webSearch, setWebSearch] = useState(false);
@@ -77,11 +85,14 @@ export default function AiChat() {
     setMessages([{ role: "assistant", content: mode.greeting }]);
   }
 
-  function appendToLast(chunk: string) {
+  function appendToLast(field: "content" | "reasoning", chunk: string) {
     setMessages((prev) => {
       const next = [...prev];
       const last = next[next.length - 1];
-      next[next.length - 1] = { ...last, content: last.content + chunk };
+      next[next.length - 1] =
+        field === "reasoning"
+          ? { ...last, reasoning: (last.reasoning ?? "") + chunk }
+          : { ...last, content: last.content + chunk };
       return next;
     });
   }
@@ -90,7 +101,16 @@ export default function AiChat() {
     const text = input.trim();
     if (!text || loading) return;
     const chatHistory = [...messages, { role: "user", content: text } as Message];
-    setMessages([...chatHistory, { role: "assistant", content: "" }]);
+    setMessages([
+      ...chatHistory,
+      {
+        role: "assistant",
+        content: "",
+        reasoning: "",
+        deepThinking: deepThink,
+        webSearching: webSearch,
+      },
+    ]);
     setInput("");
     setLoading(true);
     try {
@@ -98,23 +118,56 @@ export default function AiChat() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: chatHistory,
+          messages: chatHistory.map(({ role, content }) => ({ role, content })),
           system: activeMode.system,
           deepThink,
+          webSearch,
         }),
       });
-      if (!res.ok || !res.body) {
-        throw new Error(`请求失败：${res.status}`);
+      if (!res.ok) {
+        const errorBody = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(errorBody?.error ?? `请求失败：${res.status}`);
+      }
+      if (!res.body) {
+        throw new Error("服务器没有返回可读取的响应");
       }
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
+      let buffer = "";
+
+      const processLine = (line: string) => {
+        if (!line.trim()) return;
+
+        const event = JSON.parse(line) as ChatStreamEvent;
+        if (event.type === "reasoning" && event.delta) {
+          appendToLast("reasoning", event.delta);
+        } else if (event.type === "text" && event.delta) {
+          appendToLast("content", event.delta);
+        } else if (event.type === "error") {
+          throw new Error(event.message ?? "AI 服务请求失败");
+        }
+      };
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        appendToLast(decoder.decode(value, { stream: true }));
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        lines.forEach(processLine);
       }
-    } catch {
-      appendToLast("抱歉，请求出错了，请稍后重试。");
+      buffer += decoder.decode();
+      if (buffer) processLine(buffer);
+    } catch (error) {
+      appendToLast(
+        "content",
+        error instanceof Error
+          ? `抱歉，${error.message}`
+          : "抱歉，请求出错了，请稍后重试。"
+      );
     } finally {
       setLoading(false);
     }
@@ -189,36 +242,73 @@ export default function AiChat() {
 
         {/* 消息列表 */}
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-6 py-6">
-          {messages.map((msg, i) => (
-            <div
-              key={i}
-              className={cn(
-                "flex items-start gap-3",
-                msg.role === "user" && "flex-row-reverse"
-              )}
-            >
-              <span
+          {messages.map((msg, i) => {
+            const isAssistant = msg.role === "assistant";
+            const isPending =
+              loading && i === messages.length - 1 && isAssistant;
+            const showReasoning =
+              isAssistant &&
+              (Boolean(msg.reasoning) ||
+                (isPending && msg.deepThinking && !msg.webSearching));
+
+            return (
+              <div
+                key={i}
                 className={cn(
-                  "grid size-9 shrink-0 place-items-center rounded-full text-xs font-bold text-white",
-                  msg.role === "assistant"
-                    ? "bg-gradient-to-br from-indigo-500 to-violet-600"
-                    : "bg-slate-400"
+                  "flex items-start gap-3",
+                  msg.role === "user" && "flex-row-reverse"
                 )}
               >
-                {msg.role === "assistant" ? "AI" : "我"}
-              </span>
-              <p
-                className={cn(
-                  "max-w-[70%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
-                  msg.role === "assistant"
-                    ? "border border-slate-100 bg-white text-slate-700 shadow-sm"
-                    : "bg-indigo-500 text-white"
-                )}
-              >
-                {msg.content}
-              </p>
-            </div>
-          ))}
+                <span
+                  className={cn(
+                    "grid size-9 shrink-0 place-items-center rounded-full text-xs font-bold text-white",
+                    isAssistant
+                      ? "bg-gradient-to-br from-indigo-500 to-violet-600"
+                      : "bg-slate-400"
+                  )}
+                >
+                  {isAssistant ? "AI" : "我"}
+                </span>
+                <div
+                  className={cn(
+                    "max-w-[70%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
+                    isAssistant
+                      ? "border border-slate-100 bg-white shadow-sm"
+                      : "bg-indigo-500 text-white"
+                  )}
+                >
+                  {showReasoning && (
+                    <div className="mb-3 border-l-2 border-slate-200 pl-3 text-slate-400">
+                      <div className="mb-1 text-xs font-medium">
+                        {isPending && !msg.content
+                          ? "正在深度思考…"
+                          : "深度思考过程"}
+                      </div>
+                      {msg.reasoning && (
+                        <div className="whitespace-pre-wrap text-xs leading-relaxed">
+                          {msg.reasoning}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {msg.content ? (
+                    <div
+                      className={cn(
+                        "whitespace-pre-wrap",
+                        isAssistant && "text-slate-700"
+                      )}
+                    >
+                      {msg.content}
+                    </div>
+                  ) : isPending && (!msg.deepThinking || msg.webSearching) ? (
+                    <span className="animate-pulse text-slate-400">
+                      {msg.webSearching ? "正在联网搜索…" : "正在生成回复…"}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* 输入区 */}
@@ -226,8 +316,11 @@ export default function AiChat() {
           <div className="flex gap-2 pb-3">
             <button
               onClick={() => setDeepThink((v) => !v)}
+              disabled={loading}
+              aria-pressed={deepThink}
+              title={deepThink ? "关闭深度思考" : "开启深度思考"}
               className={cn(
-                "cursor-pointer rounded-full border px-3 py-1.5 text-sm transition",
+                "cursor-pointer rounded-full border px-3 py-1.5 text-sm transition disabled:cursor-not-allowed disabled:opacity-60",
                 deepThink
                   ? "border-indigo-200 bg-indigo-50 text-indigo-600"
                   : "border-slate-200 text-slate-600 hover:bg-slate-50"
@@ -237,8 +330,11 @@ export default function AiChat() {
             </button>
             <button
               onClick={() => setWebSearch((v) => !v)}
+              disabled={loading}
+              aria-pressed={webSearch}
+              title={webSearch ? "关闭联网搜索" : "开启联网搜索"}
               className={cn(
-                "cursor-pointer rounded-full border px-3 py-1.5 text-sm transition",
+                "cursor-pointer rounded-full border px-3 py-1.5 text-sm transition disabled:cursor-not-allowed disabled:opacity-60",
                 webSearch
                   ? "border-indigo-200 bg-indigo-50 text-indigo-600"
                   : "border-slate-200 text-slate-600 hover:bg-slate-50"
