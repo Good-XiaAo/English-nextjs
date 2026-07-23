@@ -234,9 +234,9 @@ export default function AiChat() {
             </div>
           </div>
           <select className="cursor-pointer rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700">
-            <option>GPT-4o</option>
-            <option>GPT-4o mini</option>
-            <option>DeepSeek</option>
+            <option>Qwen3.7plus</option>
+            <option>Kimi-k2.7-code</option>
+            <option>DeepSeek-v4-pro</option>
           </select>
         </div>
 
